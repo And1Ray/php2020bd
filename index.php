@@ -1,9 +1,81 @@
 <?php
-function debug($el)
-{
-    echo '<pre>';
-    print_r($el);
-    echo '</pre>';
+if (!empty($_GET)) {
+
+    try {
+        $pdo = new PDO("mysql:host=localhost;dbname=burgers", 'root', 'i9c8ip3k');
+    } catch (PDOException $e) {
+        echo $e->getMessage();
+        die;
+    }
+
+    $email = $_GET['email'];
+    $name = $_GET['name'];
+    $phone = $_GET['phone'];
+    $address = 'Ул. ' . $_GET['street'] . ', дом ' . $_GET['home'] . ', корп. ' . $_GET['part'] . ', кв. ' . $_GET['appt'] . ', эт. ' . $_GET['floor'] . '.';
+    $comment = 'Комментарий:' . $_GET['comment'] . '; Оплата: ' . $_GET['payment'] . '; Не перезванивать: ' . $_GET['callback'] . ';';
+
+    function getUser($db, $mail)
+    {
+        $ret = $db->query("SELECT * FROM burgers.users WHERE email = '$mail';");
+        if (!$ret) {
+            echo 'ERROR';
+            print_r($db->errorInfo());
+            die;
+        }
+        return $retEmail = $ret->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    if ($email) {
+
+        $retEmail = getUser($pdo, $email);
+
+        if ($retEmail) {
+            echo '<p style="color: white">Вы авторизованы.</p>';
+        } else {
+            $reg = $pdo->query("INSERT INTO burgers.users (`name`, `email`, `phone`) VALUE ('$name','$email','$phone');");
+            if (!$reg) {
+                echo 'ERROR';
+                print_r($pdo->errorInfo());
+                die;
+            }
+            $retEmail = getUser($pdo, $email);
+            echo '<p style="color: white">Вы зарегестрированы.</p>';
+        }
+
+        $idUser = $retEmail[0]['id'];
+
+        if ($_GET['street'] && $_GET['home'] && $_GET['appt']) {
+            $addOrder = $pdo->query(
+                "INSERT INTO burgers.orders (`id_user`, `address`, `details`) VALUE ('$idUser','$address','$comment');
+                           UPDATE burgers.users SET `count` = `count` + 1 WHERE `id` = '$idUser';");
+            if (!$addOrder) {
+                echo 'ERROR';
+                print_r($pdo->errorInfo());
+                die;
+            }
+            echo '<p style="color: white">Ваш заказ отправлен.</p>';
+
+            $today = date("Y-m-d H:i:s");
+
+            $retEmail[0]['count']++;
+
+            $mess = "
+                $today \r
+                $name; $phone;
+                'Ваш заказ будет доставлен по адресу: ' . $address \r\n
+                $comment \r
+                'DarkBeefBurger за 500 рублей, 1 шт'
+                'Спасибо! Это ваш " . $retEmail[0]['count'] . " заказ'
+            ";
+
+            $send = file_put_contents('orders.txt', $mess, FILE_APPEND);
+
+        } else {
+            echo '<p style="color: white">Не заполнен адрес, повторите отправку.</p>';
+        }
+    }
+
+    header('Location: /burgers');
 }
 
 ?>
@@ -544,75 +616,6 @@ function debug($el)
                             </div>
                         </div>
                     </form>
-
-                    <?
-
-                    try {
-                        $pdo = new PDO("mysql:host=localhost;dbname=burgers", 'root', 'i9c8ip3k');
-                    } catch (PDOException $e) {
-                        echo $e->getMessage();
-                        die;
-                    }
-
-                    $email = $_GET['email'];
-                    $name = $_GET['name'];
-                    $phone = $_GET['phone'];
-                    $address = 'Ул. ' . $_GET['street'] . ', дом ' . $_GET['home'] . ', корп. ' . $_GET['part'] . ', кв. ' . $_GET['appt'] . ', эт. ' . $_GET['floor'] . '.';
-                    $comment = 'Комментарий:' . $_GET['comment'] . '; Оплата: ' . $_GET['payment'] . '; Не перезванивать: ' . $_GET['callback'] . ';';
-
-                    function getUser($db, $mail)
-                    {
-                        $ret = $db->query("SELECT * FROM burgers.users WHERE email = '$mail';");
-                        if (!$ret) {
-                            echo 'ERROR';
-                            print_r($db->errorInfo());
-                            die;
-                        }
-                        return $retEmail = $ret->fetchAll(PDO::FETCH_ASSOC);
-                    }
-
-                    if ($email) {
-
-                        $retEmail = getUser($pdo, $email);
-
-                        if ($retEmail) {
-                            echo '<p style="color: white">Вы авторизованы.</p>';
-                        } else {
-                            $reg = $pdo->query("INSERT INTO burgers.users (`name`, `email`, `phone`) VALUE ('$name','$email','$phone');");
-                            if (!$reg) {
-                                echo 'ERROR';
-                                print_r($pdo->errorInfo());
-                                die;
-                            }
-                            $retEmail = getUser($pdo, $email);
-                            echo '<p style="color: white">Вы зарегестрированы.</p>';
-                        }
-
-                        $idUser = $retEmail[0]['id'];
-
-                        if ($_GET['street'] && $_GET['home'] && $_GET['appt']) {
-                            $addOrder = $pdo->query(
-                                "INSERT INTO burgers.orders (`id_user`, `address`, `details`) VALUE ('$idUser','$address','$comment');
-                                           UPDATE burgers.users SET `count` = `count` + 1 WHERE `id` = '$idUser';
-                                           ");
-                            if (!$addOrder) {
-                                echo 'ERROR';
-                                print_r($pdo->errorInfo());
-                                die;
-                            }
-                            echo '<p style="color: white">Ваш заказ отправлен.</p>';
-
-                            $headers = 'From: ' . $email;
-                            $mess = $address . '<br>' . $comment;
-                            mail('me4life2009@rambler.ru', 'feedback', $mess, $headers);
-
-                        } else {
-                            echo '<p style="color: white">Не заполнен адрес, повторите отправку.</p>';
-                        }
-                    }
-
-                    ?>
-
                 </div>
             </div>
         </section>
